@@ -1,0 +1,11 @@
+[package]
+name = "jhttp"
+version = "0.1.0"
+authors = ["Jay Cunningham <j@crosscompiled.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+net = "0.1.0"
+itertools = "0.7.8"
