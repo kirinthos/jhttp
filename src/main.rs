@@ -53,9 +53,9 @@ fn serve(mut stream: TcpStream, conf: std::sync::Arc<StreamConf>) {
                     eprintln!("[{:?}] error processing request {}", thread_id, e);
                     // TODO: empty response
                     "".to_owned()
-                },
+                }
                 Ok(request) => handle_request(&request),
-            }
+            };
 
             stream.write(response.as_bytes());
 
@@ -63,14 +63,18 @@ fn serve(mut stream: TcpStream, conf: std::sync::Arc<StreamConf>) {
         }
         Err(m) => {
             println!(
-                "Error occurred, terminating connection with {}",
-                stream.peer_addr().unwrap()
+                "Error occurred, terminating connection with {:?}",
+                stream.peer_addr()
             );
             println!("{}", m);
-            stream.shutdown(std::net::Shutdown::Both).unwrap();
             false
         }
     } {}
+
+    match stream.shutdown(std::net::Shutdown::Both) {
+        Ok(_) => {}
+        Err(e) => eprintln!("{}", e),
+    };
 }
 
 fn main() {
