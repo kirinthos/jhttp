@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::Arc;
@@ -29,18 +30,35 @@ fn listen(listener: TcpListener, stream_conf: StreamConf) {
     }
 }
 
+fn handle_request(request: &HttpRequest) -> String {
+    format!("{:?}", request)
+}
+
+fn parse_request(request_data: &[u8]) -> Result<HttpRequest, Box<dyn Error>> {
+    let data_result = std::str::from_utf8(request_data)?;
+    Ok(HttpRequest::from_str(data_result)?)
+}
+
 fn serve(mut stream: TcpStream, conf: std::sync::Arc<StreamConf>) {
     println!("{:?}", *conf);
-    let mut data = [0 as u8; 256];
+    let mut data = [0 as u8; 1024 * 1024 * 1];
+    let thread_id = std::thread::current().id();
 
     while match stream.read(&mut data) {
         Ok(size) => {
-            println!(
-                "[{:?}] received: {}",
-                std::thread::current().id(),
-                std::str::from_utf8(&data[..size]).unwrap()
-            );
-            stream.write(&data[..size]).unwrap();
+            println!("[{:?}] received", thread_id);
+
+            let response = match parse_request(&data) {
+                Err(e) => {
+                    eprintln!("[{:?}] error processing request {}", thread_id, e);
+                    // TODO: empty response
+                    "".to_owned()
+                },
+                Ok(request) => handle_request(&request),
+            }
+
+            stream.write(response.as_bytes());
+
             size > 0
         }
         Err(m) => {
