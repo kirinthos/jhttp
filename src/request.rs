@@ -4,23 +4,44 @@
 
 use std::collections::HashMap;
 use std::error::Error;
+use std::str::FromStr;
+
+use crate::error::ServerError;
+
+#[derive(Debug, PartialEq)]
+enum Method {
+    GET,
+}
+
+impl FromStr for Method {
+    type Err = Box<dyn Error>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match &s.to_uppercase()[..] {
+            "GET" => Ok(Self::GET),
+            _ => Err(ServerError::NotImplementedError.into()),
+        }
+    }
+}
 
 /// HttpRequest struct that contains the raw request
 /// headers and body of an incoming request
 #[derive(Debug, PartialEq)]
 pub struct HttpRequest {
-    method: String,
+    method: Method,
     path: String,
     protocol: String,
     headers: HashMap<String, String>,
     body: String,
 }
 
-impl HttpRequest {
+impl FromStr for HttpRequest {
+    type Err = Box<dyn Error>;
+
     /// Produces an HttpRequest Result from a string.
     ///
     /// Clones the string data into the object and retains ownership
-    pub fn from_str(request_body: &str) -> Result<HttpRequest, Box<dyn Error>> {
+    fn from_str(request_body: &str) -> Result<Self, Self::Err> {
         let lines: Vec<&str> = request_body.lines().collect();
         let (method_line, rest) = match lines.is_empty() {
             true => Err("Request does not contain any content"),
@@ -30,7 +51,7 @@ impl HttpRequest {
         let method_parts: Vec<&str> = method_line.split(" ").collect();
         let method_result = match method_parts.len() == 3 {
             true => Ok((
-                method_parts[0].to_owned(),
+                Method::from_str(method_parts[0])?,
                 method_parts[1].to_owned(),
                 method_parts[2].to_owned(),
             )),
