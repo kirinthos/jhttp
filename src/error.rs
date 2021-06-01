@@ -4,7 +4,8 @@ use std::error::Error;
 
 #[derive(Debug)]
 pub enum ServerError {
-    NotImplementedError,
+    NotFound,
+    NotImplemented,
 }
 
 impl std::fmt::Display for ServerError {

@@ -3,10 +3,13 @@
 use chrono::{DateTime, Utc};
 use std::{array::IntoIter, collections::HashMap};
 
+use crate::request;
+
 #[derive(Debug)]
 pub enum StatusCode {
     Success,
     NotImplemented,
+    NotFound,
 }
 
 impl StatusCode {
@@ -14,6 +17,7 @@ impl StatusCode {
         match self {
             Self::Success => 200,
             Self::NotImplemented => 501,
+            Self::NotFound => 404,
         }
     }
 
@@ -21,6 +25,7 @@ impl StatusCode {
         match self {
             Self::Success => "Success",
             Self::NotImplemented => "Not Implemented",
+            Self::NotFound => "Not Found",
         }
     }
 }
@@ -34,7 +39,28 @@ pub struct HttpResponse {
 }
 
 impl HttpResponse {
-    pub fn new(status: StatusCode, headers: HashMap<String, String>, body: Option<String>) -> Self {
+    fn default_headers() -> HashMap<String, String> {
+        let now: DateTime<Utc> = Utc::now();
+        IntoIter::new([
+            ("Server".to_owned(), "jhttp/0.1".to_owned()), // TODO: versioning!
+            ("Date".to_owned(), now.to_rfc2822()),         // TODO: proper date
+            ("Content-Type".to_owned(), "text/html".to_owned()),
+            ("Content-Length".to_owned(), "0".to_owned()),
+        ])
+        .collect()
+    }
+
+    pub fn new(
+        status: StatusCode,
+        mut headers: HashMap<String, String>,
+        body: Option<String>,
+    ) -> Self {
+        if let Some(body) = &body {
+            headers.insert(
+                "Content-Length".to_owned(),
+                body.as_bytes().len().to_string(),
+            );
+        }
         Self {
             protocol: "HTTP/1.1".to_owned(),
             status,
@@ -46,16 +72,7 @@ impl HttpResponse {
 
 impl Default for HttpResponse {
     fn default() -> Self {
-        let now: DateTime<Utc> = Utc::now();
-        let headers = IntoIter::new([
-            ("Server".to_owned(), "jhttp/0.1".to_owned()), // TODO: versioning!
-            ("Date".to_owned(), now.to_rfc2822()),
-            ("Content-Type".to_owned(), "text/html".to_owned()),
-            ("Content-Length".to_owned(), "0".to_owned()),
-        ])
-        .collect::<HashMap<_, _>>();
-
-        HttpResponse::new(StatusCode::Success, headers, None)
+        Self::new(StatusCode::Success, Self::default_headers(), None)
     }
 }
 

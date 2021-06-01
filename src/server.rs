@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::error::Error;
+use std::fs::OpenOptions;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::Arc;
@@ -7,7 +8,7 @@ use std::time::Instant;
 
 use crate::conf::StreamConf;
 use crate::error::ServerError;
-use crate::request::HttpRequest;
+use crate::request::{HttpRequest, Method};
 use crate::response::{HttpResponse, StatusCode};
 
 /// Listens for incoming connections using TcpListener
@@ -30,8 +31,40 @@ pub fn listen(stream_conf: StreamConf) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn handle_request(_request: &HttpRequest) -> Result<String, Box<dyn Error>> {
-    Ok(HttpResponse::default().to_string())
+fn serve_get(path: &str) -> Result<HttpResponse, Box<dyn Error>> {
+    println!("serving file {} from {:?}", path, std::env::current_dir());
+    let path = if path == "/" {
+        "index.html" //TODO: configuration
+    } else {
+        &path[1..]
+    };
+
+    let file_result = OpenOptions::new()
+        .write(false)
+        .read(true)
+        .create(false)
+        .open(path);
+
+    match file_result {
+        Ok(mut file) => {
+            let mut contents = String::new();
+
+            file.read_to_string(&mut contents)?;
+            println!("contents: {}", contents);
+            Ok(HttpResponse::new(
+                StatusCode::Success,
+                HashMap::new(),
+                Some(contents),
+            ))
+        }
+        Err(_) => Err(ServerError::NotFound.into()),
+    }
+}
+
+fn handle_request(request: &HttpRequest) -> Result<HttpResponse, Box<dyn Error>> {
+    Ok(match request.method {
+        Method::GET => serve_get(&request.path)?,
+    })
 }
 
 fn write_error_response(
@@ -39,9 +72,10 @@ fn write_error_response(
     error: &ServerError,
 ) -> Result<usize, Box<dyn Error>> {
     let response = match error {
-        ServerError::NotImplementedError => {
+        ServerError::NotImplemented => {
             HttpResponse::new(StatusCode::NotImplemented, HashMap::new(), None)
         }
+        ServerError::NotFound => HttpResponse::new(StatusCode::NotFound, HashMap::new(), None),
     };
     let bytes = stream.write(response.to_string().as_bytes())?;
     Ok(bytes)
@@ -54,7 +88,7 @@ fn read_and_handle_request(
     let data_result = std::str::from_utf8(request_data)?;
     let request = data_result.parse::<HttpRequest>()?;
     let response = handle_request(&request)?;
-    let bytes = stream.write(response.as_bytes())?;
+    let bytes = stream.write(response.to_string().as_bytes())?;
     Ok(bytes)
 }
 
@@ -69,16 +103,15 @@ fn serve(mut stream: TcpStream, conf: std::sync::Arc<StreamConf>) {
             let timer = Instant::now();
 
             match read_and_handle_request(&mut stream, &data) {
-                Err(e) => {
-                    match e.downcast_ref::<ServerError>() {
-                        Some(v) => {
-                            write_error_response(&mut stream, v);
-                        }
-                        None => {
-                            eprintln!("[{:?}] error processing request {}", thread_id, e);
-                        }
-                    };
+                Err(e) if e.downcast_ref::<ServerError>().is_some() => {
+                    // Note: yes, discard result.
+                    let _ = write_error_response(
+                        &mut stream,
+                        e.downcast_ref::<ServerError>()
+                            .expect("impossible. we checked for Some prior to unwrap"),
+                    );
                 }
+                Err(e) => eprintln!("[{:?}] error processing request {}", thread_id, e),
                 Ok(_) => {}
             };
 

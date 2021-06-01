@@ -9,7 +9,7 @@ use std::str::FromStr;
 use crate::error::ServerError;
 
 #[derive(Debug, PartialEq)]
-enum Method {
+pub enum Method {
     GET,
 }
 
@@ -19,7 +19,7 @@ impl FromStr for Method {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match &s.to_uppercase()[..] {
             "GET" => Ok(Self::GET),
-            _ => Err(ServerError::NotImplementedError.into()),
+            _ => Err(ServerError::NotImplemented.into()),
         }
     }
 }
@@ -28,11 +28,11 @@ impl FromStr for Method {
 /// headers and body of an incoming request
 #[derive(Debug, PartialEq)]
 pub struct HttpRequest {
-    method: Method,
-    path: String,
-    protocol: String,
-    headers: HashMap<String, String>,
-    body: String,
+    pub(crate) method: Method,
+    pub(crate) path: String,
+    pub(crate) protocol: String,
+    pub(crate) headers: HashMap<String, String>,
+    pub(crate) body: String,
 }
 
 impl FromStr for HttpRequest {
